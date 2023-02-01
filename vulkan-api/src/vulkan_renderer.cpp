@@ -135,8 +135,7 @@ create_vulkan_instance(VkInstance* o_instance,
   // information about the application
   // most data here is for developer convenience
   VkApplicationInfo app_info{};
-  // app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-  app_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+  app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
   // custom application info
   app_info.pApplicationName = "Vulkan Renderer Application";
   app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -205,7 +204,9 @@ create_vulkan_instance(VkInstance* o_instance,
 }
 
 static af::queue_family_indices
-get_queue_families(VkPhysicalDevice device, af::bump_allocator alloc) noexcept
+get_queue_families(VkPhysicalDevice device,
+                   VkSurfaceKHR surface,
+                   af::bump_allocator alloc) noexcept
 {
   af::queue_family_indices indices;
 
@@ -229,6 +230,16 @@ get_queue_families(VkPhysicalDevice device, af::bump_allocator alloc) noexcept
       indices.graphics_family = i;
     }
 
+    VkBool32 presentation_supported = false;
+    vkGetPhysicalDeviceSurfaceSupportKHR(
+      device, i, surface, &presentation_supported);
+
+    if(q_family.queueCount > 0 && presentation_supported)
+    {
+      // can be the same as other queues
+      indices.presentation_family = i;
+    }
+
     if (indices.is_valid())
     {
       break;
@@ -240,6 +251,7 @@ get_queue_families(VkPhysicalDevice device, af::bump_allocator alloc) noexcept
 
 static bool
 check_device_suitable(VkPhysicalDevice device,
+                      VkSurfaceKHR surface,
                       af::bump_allocator alloc) noexcept
 {
   /*
@@ -250,7 +262,7 @@ check_device_suitable(VkPhysicalDevice device,
   vkGetPhysicalDeviceFeatures(device, &features);
   */
 
-  af::queue_family_indices indices = get_queue_families(device, alloc);
+  af::queue_family_indices indices = get_queue_families(device, surface, alloc);
 
   return indices.is_valid();
 }
@@ -313,12 +325,28 @@ vulkan_renderer::init(GLFWwindow* window, af::bump_allocator allocator) noexcept
             " bytes of memory)",
             m_vk_memory_used);
 
+  if (int err = create_surface(); err)
+  {
+    return err;
+  }
+
+  if(int err = get_physical_device(); err)
+  {
+    return err;
+  }
+
+  if(int err = create_logical_device(); err)
+  {
+    return err;
+  }
+
   return 0;
 }
 
 void
 vulkan_renderer::cleanup() noexcept
 {
+  vkDestroySurfaceKHR(m_instance, m_surface, &m_vk_allocators);
   vkDestroyDevice(m_main_device.m_logical_device, &m_vk_allocators);
   vkDestroyInstance(m_instance, &m_vk_allocators);
 }
@@ -365,7 +393,7 @@ vulkan_renderer::get_physical_device() noexcept
   {
     af::bump_allocator temp_alloc(memory_for_check_device_suitable,
                                   memory_for_check_device_suitable_size);
-    if (check_device_suitable(vk_devices[i], temp_alloc))
+    if (check_device_suitable(vk_devices[i], m_surface, temp_alloc))
     {
       m_main_device.m_physical_device = vk_devices[i];
       break;
@@ -383,7 +411,7 @@ vulkan_renderer::create_logical_device() noexcept
 
   // get the queue family indices
   af::queue_family_indices indices = get_queue_families(
-    m_main_device.m_physical_device, scratch_space_for_logical);
+    m_main_device.m_physical_device, m_surface, scratch_space_for_logical);
 
   // queue the logical device needs to create
   VkDeviceQueueCreateInfo vk_dev_q_create_info{};
@@ -423,6 +451,21 @@ vulkan_renderer::create_logical_device() noexcept
                    indices.graphics_family,
                    0,
                    &m_graphics_queue);
+
+  return 0;
+}
+
+int
+vulkan_renderer::create_surface() noexcept
+{
+  // create a create surface info struct specific to how glfw is handling this
+  // window
+  VkResult result =
+    glfwCreateWindowSurface(m_instance, m_window, &m_vk_allocators, &m_surface);
+  if (result != VK_SUCCESS)
+  {
+    return static_cast<int>(AfVkVulkanReservedStart) + result;
+  }
 
   return 0;
 }

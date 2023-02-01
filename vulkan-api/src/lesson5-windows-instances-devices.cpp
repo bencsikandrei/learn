@@ -66,16 +66,6 @@ main()
     return EXIT_FAILURE;
   }
 
-  if (g_vk_renderer.get_physical_device() != 0)
-  {
-    return EXIT_FAILURE;
-  }
-
-  if(g_vk_renderer.create_logical_device() != 0)
-  {
-    return EXIT_FAILURE;
-  }
-
   while (!glfwWindowShouldClose(g_window))
   {
     glfwPollEvents();

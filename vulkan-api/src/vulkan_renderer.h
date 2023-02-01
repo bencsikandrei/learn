@@ -19,9 +19,11 @@ struct vulkan_renderer
   // Get functions
   int get_physical_device() noexcept;
   int create_logical_device() noexcept;
+  int create_surface() noexcept;
 
   // Memory
   af::bump_allocator m_allocator;
+
   void* m_scratch_memory = nullptr;
   uint64_t m_scratch_memory_size = 0;
 
@@ -29,6 +31,7 @@ struct vulkan_renderer
   GLFWwindow* m_window;
 
   // Vulkan
+  VkInstance m_instance;
   VkAllocationCallbacks m_vk_allocators;
 
   struct device_pair
@@ -38,8 +41,8 @@ struct vulkan_renderer
   };
   device_pair m_main_device;
   VkQueue m_graphics_queue;
+  VkSurfaceKHR m_surface;
 
-  VkInstance m_instance;
   uint64_t m_vk_memory_used = 0;
 };
 
